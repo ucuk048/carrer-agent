@@ -138,63 +138,88 @@ def download_linkedin_official_pdf(page, candidate_id: str, candidate_name: str,
 
     # --- STRATEGY 1: Exact SDUI DOM Interactive Click (from LinkedIn SDUI Web) ---
     try:
-        # 1. More button (supporting new LinkedIn SDUI & legacy)
-        more_selectors = [
-            "button[aria-label='More']",
-            "button:has(svg#overflow-web-ios-small)",
-            "button[aria-label*='More actions']",
-            "button[aria-label*='Tindakan lainnya']",
-            "button[componentkey*='overflow']",
-            "button[componentkey*='More']",
-            ".pv-top-card-v2-ctas button.artdeco-dropdown__trigger",
-            "div.pvs-profile-actions button.artdeco-dropdown__trigger",
-            "button:has-text('More')",
-            "button:has-text('Lainnya')"
-        ]
+        # 1. More / Lainnya button trigger via JS evaluate and locators
+        clicked_more = page.evaluate("""() => {
+            const btns = Array.from(document.querySelectorAll('button')).filter(b => {
+                const aria = (b.getAttribute('aria-label') || '').toLowerCase();
+                const txt = (b.innerText || '').trim().toLowerCase();
+                const svgs = Array.from(b.querySelectorAll('svg')).map(s => s.id || '');
+                return aria.includes('lainnya') || aria.includes('more') || txt === 'more' || txt === 'lainnya' || svgs.includes('overflow-web-ios-small');
+            });
+            if (btns.length > 0) {
+                btns[0].scrollIntoView();
+                btns[0].click();
+                return true;
+            }
+            return false;
+        }""")
 
-        more_btn = None
-        for sel in more_selectors:
-            loc = page.locator(sel).first
-            if loc.count() > 0 and loc.is_visible():
-                more_btn = loc
-                break
-
-        if more_btn:
-            more_btn.click(timeout=3000)
-            time.sleep(1.0)
-
-            # 2. PDF Option Selector (matches user snippet: svg#download-medium, p "Save to PDF")
-            pdf_selectors = [
-                "p:has-text('Save to PDF')",
-                "p:has-text('Simpan ke PDF')",
-                "div:has(svg#download-medium)",
-                "svg#download-medium",
-                "[data-token-id='136']",
-                "div.artdeco-dropdown__content div:has-text('Save to PDF')",
-                "div.artdeco-dropdown__content div:has-text('Simpan ke PDF')",
-                "li:has-text('Save to PDF')",
-                "li:has-text('Simpan ke PDF')"
+        if not clicked_more:
+            more_selectors = [
+                "button[aria-label='Lainnya']",
+                "button[aria-label='More']",
+                "button:has(svg#overflow-web-ios-small)",
+                "button[aria-label*='More actions']",
+                "button[aria-label*='Tindakan lainnya']",
+                ".pv-top-card-v2-ctas button.artdeco-dropdown__trigger",
+                "div.pvs-profile-actions button.artdeco-dropdown__trigger",
+                "button:has-text('Lainnya')",
+                "button:has-text('More')"
             ]
-
-            pdf_item = None
-            for sel in pdf_selectors:
+            for sel in more_selectors:
                 loc = page.locator(sel).first
-                if loc.count() > 0 and loc.is_visible():
-                    pdf_item = loc
-                    break
+                if loc.count() > 0:
+                    try:
+                        loc.scroll_into_view_if_needed(timeout=2000)
+                        loc.click(timeout=3000)
+                        clicked_more = True
+                        break
+                    except Exception:
+                        pass
 
-            if pdf_item:
+        if clicked_more:
+            time.sleep(1.2)
+
+            # 2. PDF Option Selector (Exact user snippet: div[role="menuitem"], p "Simpan sebagai PDF", svg#download-medium)
+            pdf_loc = page.locator(
+                'div[role="menuitem"]:has-text("Simpan sebagai PDF"), '
+                'div[role="menuitem"]:has-text("Save to PDF"), '
+                'div[role="menuitem"]:has(svg#download-medium), '
+                'p:has-text("Simpan sebagai PDF"), '
+                'p:has-text("Save to PDF"), '
+                'div:has(svg#download-medium), '
+                '[data-token-id="136"]'
+            ).first
+
+            if pdf_loc.count() > 0:
                 try:
-                    with page.expect_download(timeout=12000) as download_info:
-                        pdf_item.click(timeout=3000)
+                    with page.expect_download(timeout=15000) as download_info:
+                        pdf_loc.click(timeout=4000)
                     download = download_info.value
                     download.save_as(str(target_path))
                     if target_path.exists() and target_path.stat().st_size > 500:
                         if notify_fn:
-                            notify_fn("resume_downloaded", f"CV resmi LinkedIn ({target_path.name}) berhasil diunduh & diunggah otomatis sebagai resume aktif.")
+                            notify_fn("resume_downloaded", f"CV resmi LinkedIn ({target_path.name}) berhasil diunduh langsung dari akun LinkedIn.")
                         return target_path
                 except Exception as dl_err:
-                    logger.info(f"Interactive click download wait timed out, trying RSC API fallback: {dl_err}")
+                    logger.info(f"Interactive click download timed out, attempting JS trigger: {dl_err}")
+                    # Direct JS click on Simpan sebagai PDF item
+                    try:
+                        with page.expect_download(timeout=10000) as dl_info2:
+                            page.evaluate("""() => {
+                                const target = Array.from(document.querySelectorAll('div[role="menuitem"], p, div')).find(el => {
+                                    const txt = (el.innerText || '').trim();
+                                    const svgs = Array.from(el.querySelectorAll('svg')).map(s => s.id || '');
+                                    return txt.includes('Simpan sebagai PDF') || txt.includes('Save to PDF') || svgs.includes('download-medium');
+                                });
+                                if (target) target.click();
+                            }""")
+                        download2 = dl_info2.value
+                        download2.save_as(str(target_path))
+                        if target_path.exists() and target_path.stat().st_size > 500:
+                            return target_path
+                    except Exception as js_dl_err:
+                        logger.info(f"JS trigger download failed: {js_dl_err}")
     except Exception as ui_exc:
         logger.info(f"UI click for Save to PDF failed or timed out: {ui_exc}")
 
