@@ -46,8 +46,15 @@ database/*.db-journal
 database/*.sqlite
 database/*.sqlite3
 
+# Images & Media (Banned from git repo)
+*.png
+*.jpg
+*.jpeg
+*.webp
+
 # Uploads & Bukti Screenshot
-uploads/applications/*.png
+uploads/applications/*
+!uploads/applications/.gitkeep
 uploads/avatars/*
 !uploads/avatars/.gitkeep
 uploads/resumes/*
