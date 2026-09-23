@@ -149,6 +149,9 @@ class CareerHandler(SimpleHTTPRequestHandler):
         elif route == "/api/profile":
             self.handle_api_get_profile()
             return
+        elif route == "/api/profile/cv":
+            self.handle_api_get_cv()
+            return
         elif route == "/api/system/diagnostics":
             self.handle_api_diagnostics()
             return
@@ -763,12 +766,47 @@ class CareerHandler(SimpleHTTPRequestHandler):
                 summary = facts.get("summary", "")
 
                 resume_info = None
+                resumes_dir = ROOT / "uploads" / "resumes"
+                resume_file_path = None
                 if resume and resume["source_uri"]:
+                    p_src = Path(resume["source_uri"])
+                    if p_src.is_file():
+                        resume_file_path = p_src
+
+                if not resume_file_path and cand["id"]:
+                    patterns = [
+                        resumes_dir / f"{cand['id']}_Profile.pdf",
+                        resumes_dir / f"{cand['id']}_{resume['version_label'] if resume else ''}",
+                        resumes_dir / f"{cand['id']}_reza_apriansyah_putri_linkedin.pdf",
+                    ]
+                    for p in patterns:
+                        if p.is_file():
+                            resume_file_path = p
+                            break
+
+                if not resume_file_path and cand["id"]:
+                    matching = sorted(list(resumes_dir.glob(f"{cand['id']}*.pdf")), key=lambda p: p.stat().st_mtime, reverse=True)
+                    if matching:
+                        resume_file_path = matching[0]
+
+                if not resume_file_path:
+                    all_res = sorted(list(resumes_dir.glob("*.pdf")), key=lambda p: p.stat().st_mtime, reverse=True)
+                    if all_res:
+                        resume_file_path = all_res[0]
+
+                if resume or resume_file_path:
+                    raw_filename = resume_file_path.name if resume_file_path else (resume["version_label"] if (resume and resume["version_label"]) else "Resume.pdf")
+                    display_filename = raw_filename
+                    if resume_file_path and cand["id"] and raw_filename.startswith(f"{cand['id']}_"):
+                        display_filename = raw_filename[len(f"{cand['id']}_"):]
                     resume_info = {
-                        "filename": Path(resume["source_uri"]).name,
-                        "source_uri": resume["source_uri"],
-                        "version_label": resume["version_label"],
-                        "updated_at": resume["created_at"]
+                        "filename": display_filename,
+                        "raw_filename": raw_filename,
+                        "source_uri": resume["source_uri"] if resume else "",
+                        "version_label": resume["version_label"] if resume else "",
+                        "updated_at": resume["created_at"] if resume else "",
+                        "file_url": "/api/profile/cv",
+                        "has_file": bool(resume_file_path and resume_file_path.exists())
                     }
 
             self.send_json({
@@ -978,6 +1016,68 @@ class CareerHandler(SimpleHTTPRequestHandler):
         except Exception as exc:
             traceback.print_exc()
             self.send_json({"error": str(exc)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def handle_api_get_cv(self):
+        try:
+            with get_db() as conn:
+                cur = conn.cursor()
+                cand = cur.execute("SELECT * FROM candidate_profiles WHERE active=1 ORDER BY created_at DESC LIMIT 1").fetchone()
+                if not cand:
+                    self.send_json({"error": "Profil kandidat tidak ditemukan."}, status=HTTPStatus.NOT_FOUND)
+                    return
+
+                resume = cur.execute("SELECT * FROM resume_versions WHERE candidate_id = ? AND is_current=1 LIMIT 1", (cand["id"],)).fetchone()
+                if not resume:
+                    resume = cur.execute("SELECT * FROM resume_versions WHERE candidate_id = ? ORDER BY created_at DESC LIMIT 1", (cand["id"],)).fetchone()
+
+            resumes_dir = ROOT / "uploads" / "resumes"
+            target_path = None
+
+            if resume and resume["source_uri"]:
+                src_path = Path(resume["source_uri"])
+                if src_path.is_file():
+                    target_path = src_path
+
+            if not target_path and cand["id"]:
+                patterns = [
+                    resumes_dir / f"{cand['id']}_Profile.pdf",
+                    resumes_dir / f"{cand['id']}_{resume['version_label'] if resume else ''}",
+                    resumes_dir / f"{cand['id']}_reza_apriansyah_putri_linkedin.pdf",
+                ]
+                for p in patterns:
+                    if p.is_file():
+                        target_path = p
+                        break
+
+            if not target_path and cand["id"]:
+                matching = sorted(list(resumes_dir.glob(f"{cand['id']}*.pdf")), key=lambda p: p.stat().st_mtime, reverse=True)
+                if matching:
+                    target_path = matching[0]
+
+            if not target_path:
+                all_res = sorted(list(resumes_dir.glob("*.pdf")), key=lambda p: p.stat().st_mtime, reverse=True)
+                if all_res:
+                    target_path = all_res[0]
+
+            if not target_path or not target_path.exists():
+                self.send_json({"error": "Berkas resume (PDF) belum tersedia. Silakan unggah resume terlebih dahulu."}, status=HTTPStatus.NOT_FOUND)
+                return
+
+            pdf_data = target_path.read_bytes()
+            display_name = target_path.name
+            if cand["id"] and display_name.startswith(f"{cand['id']}_"):
+                display_name = display_name[len(f"{cand['id']}_"):]
+
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "application/pdf")
+            self.send_header("Content-Disposition", f'inline; filename="{display_name}"')
+            self.send_header("Content-Length", str(len(pdf_data)))
+            self.send_header("Cache-Control", "no-cache, must-revalidate")
+            self.end_headers()
+            self.wfile.write(pdf_data)
+        except Exception as exc:
+            traceback.print_exc()
+            self.send_json({"error": f"Gagal membaca berkas CV: {str(exc)}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def handle_api_parse_job_ai(self):
         try:

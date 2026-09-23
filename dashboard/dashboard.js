@@ -16,6 +16,7 @@ let jobKeywordsCatalog = {};
 let candidateSkillsList = [];
 let selectedJobIds = new Set();
 let selectedAppIds = new Set();
+let currentCandidateResume = null;
 
 // ==========================================================================
 // Inisialisasi
@@ -78,6 +79,16 @@ function setupListeners() {
       const errEl = document.getElementById('err-' + inp.id);
       if (errEl) errEl.classList.remove('visible');
     });
+  });
+
+  // Global Escape key to close modals
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (typeof closeCvViewerModal === 'function') closeCvViewerModal();
+      if (typeof closeProfileModal === 'function') closeProfileModal();
+      if (typeof closeLinkedInModal === 'function') closeLinkedInModal();
+      if (typeof closeScreenshotModal === 'function') closeScreenshotModal();
+    }
   });
 
   // Delegated table actions (immune to quote escaping / inline syntax errors)
@@ -411,7 +422,13 @@ async function loadCandidateProfile() {
       // Resume attachment info
       const resumeBadge = document.getElementById('prof-resume-badge');
       const resumeFileName = document.getElementById('prof-resume-filename');
-      if (data.resume && data.resume.filename) {
+      const modalViewCvBtn = document.getElementById('btn-modal-view-cv');
+      const bannerViewCvBtn = document.getElementById('btn-banner-view-cv');
+
+      currentCandidateResume = data.resume || null;
+      const hasValidResume = data.resume && (data.resume.has_file || (data.resume.filename && data.resume.filename !== 'Belum ada file'));
+
+      if (hasValidResume) {
         if (resumeBadge) {
           resumeBadge.textContent = 'Terlampir';
           resumeBadge.classList.add('attached');
@@ -419,6 +436,8 @@ async function loadCandidateProfile() {
         if (resumeFileName) {
           resumeFileName.textContent = data.resume.filename;
         }
+        if (modalViewCvBtn) modalViewCvBtn.style.display = 'inline-flex';
+        if (bannerViewCvBtn) bannerViewCvBtn.style.display = 'inline-flex';
       } else {
         if (resumeBadge) {
           resumeBadge.textContent = 'Belum ada file';
@@ -427,6 +446,8 @@ async function loadCandidateProfile() {
         if (resumeFileName) {
           resumeFileName.textContent = 'Pilih file PDF untuk ekstraksi skill otomatis';
         }
+        if (modalViewCvBtn) modalViewCvBtn.style.display = 'none';
+        if (bannerViewCvBtn) bannerViewCvBtn.style.display = 'inline-flex';
       }
 
       if (expInput && cand.preferences && cand.preferences.experience_years !== undefined) {
@@ -599,6 +620,16 @@ async function uploadCandidateResume(inputEl) {
           resumeFileName.textContent = data.filename;
         }
 
+        currentCandidateResume = {
+          filename: data.filename,
+          has_file: true,
+          file_url: '/api/profile/cv'
+        };
+        const modalViewCvBtn = document.getElementById('btn-modal-view-cv');
+        const bannerViewCvBtn = document.getElementById('btn-banner-view-cv');
+        if (modalViewCvBtn) modalViewCvBtn.style.display = 'inline-flex';
+        if (bannerViewCvBtn) bannerViewCvBtn.style.display = 'inline-flex';
+
         // Auto-fill skills if extracted
         const skillsInput = document.getElementById('prof-skills');
         if (data.extracted_skills && data.extracted_skills.length > 0) {
@@ -632,6 +663,75 @@ async function openProfileModal() {
 function closeProfileModal() {
   document.getElementById('modal-profile')?.classList.remove('open');
 }
+
+window.openCvViewerModal = async function () {
+  const modal = document.getElementById('modal-cv-viewer');
+  const iframe = document.getElementById('cv-viewer-iframe');
+  const loader = document.getElementById('cv-viewer-loading');
+  const fallback = document.getElementById('cv-viewer-fallback');
+  const meta = document.getElementById('cv-viewer-meta');
+  const openTabBtn = document.getElementById('btn-cv-open-tab');
+  const downloadBtn = document.getElementById('btn-cv-download');
+  const downloadFallbackBtn = document.getElementById('btn-cv-download-fallback');
+
+  if (!currentCandidateResume || !currentCandidateResume.has_file) {
+    await loadCandidateProfile();
+  }
+
+  if (!currentCandidateResume || !currentCandidateResume.has_file) {
+    showToast('Berkas CV PDF belum tersedia. Silakan unggah terlebih dahulu di menu Kelola Data.');
+    openProfileModal();
+    return;
+  }
+
+  const filename = currentCandidateResume.filename || 'Resume.pdf';
+  const cvUrl = (currentCandidateResume.file_url || '/api/profile/cv') + '?t=' + Date.now();
+
+  if (meta) {
+    const updated = currentCandidateResume.updated_at ? ` (Diperbarui: ${currentCandidateResume.updated_at})` : '';
+    meta.textContent = `Nama Berkas: ${filename}${updated}`;
+  }
+  if (openTabBtn) {
+    openTabBtn.href = '/api/profile/cv';
+  }
+  if (downloadBtn) {
+    downloadBtn.href = '/api/profile/cv';
+    downloadBtn.setAttribute('download', filename);
+  }
+  if (downloadFallbackBtn) {
+    downloadFallbackBtn.href = '/api/profile/cv';
+  }
+
+  if (fallback) fallback.style.display = 'none';
+  if (iframe) {
+    iframe.style.display = 'block';
+    if (loader) loader.classList.remove('hidden');
+    iframe.onload = () => {
+      if (loader) loader.classList.add('hidden');
+    };
+    iframe.onerror = () => {
+      if (loader) loader.classList.add('hidden');
+      if (fallback) fallback.style.display = 'block';
+      iframe.style.display = 'none';
+    };
+    iframe.src = cvUrl;
+  }
+
+  modal?.classList.add('open');
+};
+
+window.closeCvViewerModal = function () {
+  const modal = document.getElementById('modal-cv-viewer');
+  modal?.classList.remove('open');
+  const iframe = document.getElementById('cv-viewer-iframe');
+  if (iframe) {
+    setTimeout(() => {
+      if (!modal?.classList.contains('open')) {
+        iframe.src = 'about:blank';
+      }
+    }, 200);
+  }
+};
 
 async function syncCandidateFromLinkedIn() {
   const btn = document.getElementById('btn-sync-profile');

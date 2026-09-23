@@ -72,7 +72,11 @@
               <!-- Dynamically populated skills pills -->
             </div>
           </div>
-          <div class="profile-action-block">
+          <div class="profile-action-block" style="display: flex; gap: 8px; align-items: center;">
+            <button id="btn-banner-view-cv" type="button" class="btn btn-secondary btn-sm" onclick="openCvViewerModal()" style="display: inline-flex; align-items: center; gap: 6px;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+              <span>Lihat CV</span>
+            </button>
             <button type="button" class="btn btn-secondary btn-sm" onclick="openProfileModal()">
               Kelola Data
             </button>
@@ -551,6 +555,10 @@
               <button type="button" class="btn btn-secondary" onclick="document.getElementById('prof-resume-input').click()" style="height: 36px; padding: 0 14px; font-size: 13px;">
                 Unggah File PDF
               </button>
+              <button id="btn-modal-view-cv" type="button" class="btn btn-secondary" onclick="openCvViewerModal()" style="height: 36px; padding: 0 12px; font-size: 13px; display: none; align-items: center; gap: 5px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                <span>Lihat CV</span>
+              </button>
               <span id="prof-resume-filename" class="resume-filename-text">Pilih file PDF untuk ekstraksi skill otomatis</span>
             </div>
           </div>
@@ -608,6 +616,45 @@
           <button class="btn btn-primary" type="button" onclick="closeScreenshotModal()">
             Selesai
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal 4: Pratinjau Berkas Resume / CV -->
+    <div id="modal-cv-viewer" class="modal-backdrop" onclick="if(event.target === this) closeCvViewerModal()">
+      <div class="modal-dialog modal-cv-viewer" role="dialog" aria-modal="true" aria-labelledby="modal-cv-title">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+            <h3 id="modal-cv-title" class="modal-title">Pratinjau Berkas Resume / CV</h3>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <a id="btn-cv-open-tab" href="/api/profile/cv" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="text-decoration: none; height: 32px; padding: 0 12px; font-size: 12px; display: inline-flex; align-items: center; gap: 5px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+              <span>Buka Tab Baru</span>
+            </a>
+            <a id="btn-cv-download" href="/api/profile/cv" download="Resume.pdf" class="btn btn-primary btn-sm" style="text-decoration: none; height: 32px; padding: 0 12px; font-size: 12px; display: inline-flex; align-items: center; gap: 5px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              <span>Unduh PDF</span>
+            </a>
+            <button class="modal-close-btn" type="button" onclick="closeCvViewerModal()" title="Tutup">✕</button>
+          </div>
+        </div>
+        <div class="modal-body" style="padding: 0; margin-bottom: 0;">
+          <div id="cv-viewer-container" class="cv-viewer-container">
+            <iframe id="cv-viewer-iframe" src="about:blank" class="cv-viewer-frame" title="Pratinjau CV PDF"></iframe>
+            <div id="cv-viewer-loading" class="cv-viewer-loading">
+              <span>Memuat berkas CV...</span>
+            </div>
+            <div id="cv-viewer-fallback" class="cv-viewer-fallback" style="display: none;">
+              <p style="margin: 0 0 12px; font-size: 13px; color: var(--text-secondary);">Pratinjau langsung tidak didukung pada peramban ini. Anda dapat mengunduh atau membuka langsung berkas PDF.</p>
+              <a id="btn-cv-download-fallback" href="/api/profile/cv" target="_blank" class="btn btn-primary btn-sm">Buka Berkas CV</a>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="margin-top: 12px; display: flex; justify-content: space-between; align-items: center;">
+          <span id="cv-viewer-meta" style="font-size: 12px; color: var(--text-secondary);"></span>
+          <button class="btn btn-secondary" type="button" onclick="closeCvViewerModal()">Tutup</button>
         </div>
       </div>
     </div>
