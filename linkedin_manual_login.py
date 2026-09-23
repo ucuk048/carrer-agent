@@ -394,11 +394,7 @@ def sync_active_linkedin_profile(
             if existing_by_key:
                 candidate_id = existing_by_key[0]
             else:
-                existing_active = cur.execute("SELECT id FROM candidate_profiles WHERE active = 1 ORDER BY updated_at DESC, created_at DESC LIMIT 1").fetchone()
-                if existing_active:
-                    candidate_id = existing_active[0]
-                else:
-                    candidate_id = f"cand-{uuid.uuid4().hex[:8]}"
+                candidate_id = f"cand-{uuid.uuid4().hex[:8]}"
     except Exception:
         candidate_id = f"cand-{uuid.uuid4().hex[:8]}"
 
@@ -582,7 +578,7 @@ def sync_active_linkedin_profile(
                 "source_url": ext_key
             })
 
-            if downloaded_pdf and downloaded_pdf.exists():
+            if downloaded_pdf and downloaded_pdf.exists() and downloaded_pdf.stat().st_size > 500:
                 cur.execute("UPDATE resume_versions SET is_current = 0 WHERE candidate_id = ?", (candidate_id,))
                 res_id = f"res-li-{uuid.uuid4().hex[:8]}"
                 rel_path = str(downloaded_pdf.relative_to(ROOT)).replace("\\", "/")
@@ -593,31 +589,29 @@ def sync_active_linkedin_profile(
                     res_id,
                     candidate_id,
                     f"CV LinkedIn Resmi ({full_name})",
-                    rel_path,
+                    str(downloaded_pdf.resolve()),
                     pdf_text or summary,
                     facts_payload,
                     f"hash-{uuid.uuid4().hex[:8]}"
                 ))
             else:
-                existing_res = cur.execute("SELECT id FROM resume_versions WHERE candidate_id = ? AND is_current = 1 LIMIT 1", (candidate_id,)).fetchone()
-                if existing_res:
-                    cur.execute("""
-                        UPDATE resume_versions
-                        SET structured_facts = ?, extracted_text = ?, source_uri = ?
-                        WHERE id = ?
-                    """, (facts_payload, summary, ext_key, existing_res[0]))
-                else:
-                    cur.execute("""
-                        INSERT INTO resume_versions (id, candidate_id, version_label, source_uri, extracted_text, structured_facts, content_hash, is_current)
-                        VALUES (?, ?, 'CV LinkedIn (Import)', ?, ?, ?, ?, 1)
-                    """, (
-                        f"res-{uuid.uuid4().hex[:8]}",
-                        candidate_id,
-                        ext_key,
-                        summary,
-                        facts_payload,
-                        f"hash-{uuid.uuid4().hex[:8]}"
-                    ))
+                # Otomatis generate berkas CV PDF resmi khusus untuk profil ini
+                try:
+                    import server
+                    cand_stub = {
+                        "id": candidate_id,
+                        "full_name": full_name,
+                        "headline": headline,
+                        "location": extracted_data.get("location", ""),
+                        "external_key": ext_key,
+                        "target_roles": extracted_data.get("target_roles", [])
+                    }
+                    resume_stub = {"structured_facts": facts_payload}
+                    gen_pdf = server.generate_and_save_candidate_cv(cand_stub, resume_stub)
+                    if gen_pdf and gen_pdf.exists():
+                        downloaded_pdf = gen_pdf
+                except Exception as gen_err:
+                    logger.warning(f"Fallback generate CV gagal: {gen_err}")
 
             cur.execute("""
                 INSERT INTO audit_events (id, actor_type, actor_id, event_type, entity_type, entity_id, payload)

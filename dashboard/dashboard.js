@@ -685,21 +685,22 @@ window.openCvViewerModal = async function () {
   }
 
   const filename = currentCandidateResume.filename || 'Resume.pdf';
-  const cvUrl = (currentCandidateResume.file_url || '/api/profile/cv') + '?t=' + Date.now();
+  const baseCvUrl = currentCandidateResume.file_url || '/api/profile/cv';
+  const cvUrl = baseCvUrl + (baseCvUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
 
   if (meta) {
     const updated = currentCandidateResume.updated_at ? ` (Diperbarui: ${currentCandidateResume.updated_at})` : '';
     meta.textContent = `Nama Berkas: ${filename}${updated}`;
   }
   if (openTabBtn) {
-    openTabBtn.href = '/api/profile/cv';
+    openTabBtn.href = baseCvUrl;
   }
   if (downloadBtn) {
-    downloadBtn.href = '/api/profile/cv';
+    downloadBtn.href = baseCvUrl;
     downloadBtn.setAttribute('download', filename);
   }
   if (downloadFallbackBtn) {
-    downloadFallbackBtn.href = '/api/profile/cv';
+    downloadFallbackBtn.href = baseCvUrl;
   }
 
   if (fallback) fallback.style.display = 'none';

@@ -41,6 +41,10 @@ data/*.pdf
 *.log
 
 # Database & Runtime Data
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
 database/*.db
 database/*.db-journal
 database/*.sqlite

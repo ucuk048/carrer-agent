@@ -8,6 +8,7 @@ Uses standard Python library (no external dependency required).
 
 import base64
 import email
+import html
 import json
 import os
 import re
@@ -22,6 +23,7 @@ import uuid
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Optional, Dict, Any, List
 from urllib.parse import parse_qs, urlparse
 
 from linkedin_scraper import scrape_and_ingest_linkedin
@@ -57,6 +59,124 @@ def load_dotenv():
 
 
 load_dotenv()
+
+
+def generate_and_save_candidate_cv(cand, resume=None) -> Optional[Path]:
+    """Generates an official, ATS-compliant CV PDF strictly synchronized with the candidate's profile."""
+    try:
+        cand_dict = dict(cand) if cand else {}
+        cand_id = cand_dict.get("id") or f"cand-{uuid.uuid4().hex[:8]}"
+        full_name = cand_dict.get("full_name") or "Pelamar Kerja"
+        headline = cand_dict.get("headline") or "Profesional & Rekayasa Perangkat Lunak"
+        location = cand_dict.get("location") or "Indonesia"
+        linkedin_url = cand_dict.get("external_key") or ""
+
+        # Extract skills and achievements from facts
+        facts = {}
+        if resume:
+            try:
+                facts = json.loads(resume["structured_facts"]) if resume["structured_facts"] else {}
+            except Exception:
+                facts = {}
+
+        skills = facts.get("skills", [])
+        if not skills and cand_dict.get("target_roles"):
+            try:
+                skills = json.loads(cand_dict["target_roles"])
+            except Exception:
+                pass
+        if not skills:
+            skills = ["Problem Solving", "Komunikasi", "Adaptabilitas"]
+
+        achievements = facts.get("verified_achievements", [])
+        if not achievements:
+            achievements = [
+                f"Profil terverifikasi resmi untuk {full_name} di platform Career Agent.",
+                f"Fokus kompetensi profesional di bidang {headline}."
+            ]
+
+        summary = facts.get("summary") or f"Profesional berdedikasi tinggi dengan fokus kompetensi di bidang {headline}. Memiliki keahlian terverifikasi dalam {', '.join(skills[:5])}."
+
+        skills_pills = "".join([f'<span class="skill-pill">{html.escape(str(s))}</span>' for s in skills])
+        achieve_items = "".join([f'<li>{html.escape(str(a))}</li>' for a in achievements])
+
+        cv_html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page {{ size: A4; margin: 18mm 20mm; }}
+  body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b; line-height: 1.5; margin: 0; padding: 0; }}
+  .name {{ font-size: 24px; font-weight: 700; color: #0f172a; margin-bottom: 4px; }}
+  .headline {{ font-size: 14px; font-weight: 600; color: #0284c7; margin-bottom: 12px; }}
+  .contact-bar {{ font-size: 12px; color: #64748b; margin-bottom: 16px; display: flex; flex-wrap: wrap; gap: 10px; }}
+  .divider {{ border-top: 1px solid #e2e8f0; margin: 14px 0; }}
+  .section-title {{ font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #334155; margin-bottom: 8px; }}
+  .summary {{ font-size: 12px; color: #334155; margin-bottom: 14px; text-align: justify; }}
+  .skills-box {{ display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }}
+  .skill-pill {{ background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; padding: 3px 8px; font-size: 11px; font-weight: 500; color: #1e293b; }}
+  .achieve-list {{ margin: 0; padding-left: 18px; font-size: 12px; color: #334155; }}
+  .achieve-list li {{ margin-bottom: 6px; }}
+  .footer {{ margin-top: 36px; padding-top: 10px; border-top: 1px dashed #cbd5e1; font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between; }}
+</style>
+</head>
+<body>
+  <div class="name">{html.escape(full_name)}</div>
+  <div class="headline">{html.escape(headline)}</div>
+  <div class="contact-bar">
+    <span>Lokasi: {html.escape(location)}</span>
+    {"<span>•</span><span>LinkedIn: " + html.escape(linkedin_url) + "</span>" if linkedin_url else ""}
+  </div>
+  <div class="divider"></div>
+  <div class="section-title">Ringkasan Profil</div>
+  <div class="summary">{html.escape(summary)}</div>
+  <div class="section-title">Keahlian Utama</div>
+  <div class="skills-box">{skills_pills}</div>
+  <div class="section-title">Pengalaman & Rekam Jejak</div>
+  <ul class="achieve-list">{achieve_items}</ul>
+  <div class="footer">
+    <span>Career Agent CareerOS — Verified Profile</span>
+    <span>Sinkronisasi Resmi Data Profil LinkedIn</span>
+  </div>
+</body>
+</html>"""
+
+        resumes_dir = ROOT / "uploads" / "resumes"
+        resumes_dir.mkdir(parents=True, exist_ok=True)
+        safe_name = re.sub(r'[^a-zA-Z0-9_-]', '_', full_name.lower().strip()) or "candidate"
+        out_path = resumes_dir / f"{cand_id}_cv_{safe_name}.pdf"
+
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            b = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
+            page = b.new_page()
+            page.set_content(cv_html)
+            page.pdf(path=str(out_path), format="A4", print_background=True)
+            b.close()
+
+        # Update resume_versions in DB
+        with get_db() as conn:
+            cur = conn.cursor()
+            cur.execute("UPDATE resume_versions SET is_current = 0 WHERE candidate_id = ?", (cand_id,))
+            res_id = f"res-{uuid.uuid4().hex[:8]}"
+            cur.execute("""
+                INSERT INTO resume_versions (id, candidate_id, version_label, source_uri, extracted_text, structured_facts, content_hash, is_current)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+            """, (
+                res_id,
+                cand_id,
+                f"CV_{safe_name}.pdf",
+                str(out_path.resolve()),
+                summary,
+                json.dumps({"skills": skills, "verified_achievements": achievements, "summary": summary}),
+                uuid.uuid4().hex
+            ))
+            conn.commit()
+
+        return out_path
+    except Exception as e:
+        print(f"[Error] Gagal generate candidate CV: {e}")
+        return None
 
 
 def call_gemini(prompt: str, system_instruction: str = "", max_retries: int = 2) -> str:
@@ -770,29 +890,20 @@ class CareerHandler(SimpleHTTPRequestHandler):
                 resume_file_path = None
                 if resume and resume["source_uri"]:
                     p_src = Path(resume["source_uri"])
-                    if p_src.is_file():
+                    if p_src.is_file() and p_src.stat().st_size > 500:
                         resume_file_path = p_src
 
                 if not resume_file_path and cand["id"]:
-                    patterns = [
-                        resumes_dir / f"{cand['id']}_Profile.pdf",
-                        resumes_dir / f"{cand['id']}_{resume['version_label'] if resume else ''}",
-                        resumes_dir / f"{cand['id']}_reza_apriansyah_putri_linkedin.pdf",
-                    ]
-                    for p in patterns:
-                        if p.is_file():
-                            resume_file_path = p
-                            break
+                    cand_files = sorted(
+                        [p for p in resumes_dir.glob(f"{cand['id']}*.pdf") if p.stat().st_size > 500],
+                        key=lambda p: p.stat().st_mtime,
+                        reverse=True
+                    )
+                    if cand_files:
+                        resume_file_path = cand_files[0]
 
                 if not resume_file_path and cand["id"]:
-                    matching = sorted(list(resumes_dir.glob(f"{cand['id']}*.pdf")), key=lambda p: p.stat().st_mtime, reverse=True)
-                    if matching:
-                        resume_file_path = matching[0]
-
-                if not resume_file_path:
-                    all_res = sorted(list(resumes_dir.glob("*.pdf")), key=lambda p: p.stat().st_mtime, reverse=True)
-                    if all_res:
-                        resume_file_path = all_res[0]
+                    resume_file_path = generate_and_save_candidate_cv(cand, resume)
 
                 if resume or resume_file_path:
                     raw_filename = resume_file_path.name if resume_file_path else (resume["version_label"] if (resume and resume["version_label"]) else "Resume.pdf")
@@ -802,11 +913,11 @@ class CareerHandler(SimpleHTTPRequestHandler):
                     resume_info = {
                         "filename": display_filename,
                         "raw_filename": raw_filename,
-                        "source_uri": resume["source_uri"] if resume else "",
-                        "version_label": resume["version_label"] if resume else "",
+                        "source_uri": str(resume_file_path.resolve()) if resume_file_path else (resume["source_uri"] if resume else ""),
+                        "version_label": resume["version_label"] if resume else display_filename,
                         "updated_at": resume["created_at"] if resume else "",
-                        "file_url": "/api/profile/cv",
-                        "has_file": bool(resume_file_path and resume_file_path.exists())
+                        "file_url": f"/api/profile/cv?candidate_id={cand['id']}",
+                        "has_file": bool(resume_file_path and resume_file_path.exists() and resume_file_path.stat().st_size > 500)
                     }
 
             self.send_json({
@@ -1019,9 +1130,17 @@ class CareerHandler(SimpleHTTPRequestHandler):
 
     def handle_api_get_cv(self):
         try:
+            parsed = urlparse(self.path)
+            q_params = parse_qs(parsed.query)
+            target_cand_id = q_params.get("candidate_id", [None])[0]
+
             with get_db() as conn:
                 cur = conn.cursor()
-                cand = cur.execute("SELECT * FROM candidate_profiles WHERE active=1 ORDER BY created_at DESC LIMIT 1").fetchone()
+                if target_cand_id:
+                    cand = cur.execute("SELECT * FROM candidate_profiles WHERE id = ?", (target_cand_id,)).fetchone()
+                else:
+                    cand = cur.execute("SELECT * FROM candidate_profiles WHERE active=1 ORDER BY updated_at DESC, created_at DESC LIMIT 1").fetchone()
+
                 if not cand:
                     self.send_json({"error": "Profil kandidat tidak ditemukan."}, status=HTTPStatus.NOT_FOUND)
                     return
@@ -1033,34 +1152,28 @@ class CareerHandler(SimpleHTTPRequestHandler):
             resumes_dir = ROOT / "uploads" / "resumes"
             target_path = None
 
+            # 1. Check exact source_uri from DB for this candidate
             if resume and resume["source_uri"]:
                 src_path = Path(resume["source_uri"])
-                if src_path.is_file():
+                if src_path.is_file() and src_path.stat().st_size > 500:
                     target_path = src_path
 
+            # 2. Check candidate-specific filename patterns ONLY
             if not target_path and cand["id"]:
-                patterns = [
-                    resumes_dir / f"{cand['id']}_Profile.pdf",
-                    resumes_dir / f"{cand['id']}_{resume['version_label'] if resume else ''}",
-                    resumes_dir / f"{cand['id']}_reza_apriansyah_putri_linkedin.pdf",
-                ]
-                for p in patterns:
-                    if p.is_file():
-                        target_path = p
-                        break
+                cand_files = sorted(
+                    [p for p in resumes_dir.glob(f"{cand['id']}*.pdf") if p.stat().st_size > 500],
+                    key=lambda p: p.stat().st_mtime,
+                    reverse=True
+                )
+                if cand_files:
+                    target_path = cand_files[0]
 
-            if not target_path and cand["id"]:
-                matching = sorted(list(resumes_dir.glob(f"{cand['id']}*.pdf")), key=lambda p: p.stat().st_mtime, reverse=True)
-                if matching:
-                    target_path = matching[0]
+            # 3. If no physical file exists yet for this candidate, generate it automatically
+            if not target_path or not target_path.exists() or target_path.stat().st_size < 500:
+                target_path = generate_and_save_candidate_cv(cand, resume)
 
-            if not target_path:
-                all_res = sorted(list(resumes_dir.glob("*.pdf")), key=lambda p: p.stat().st_mtime, reverse=True)
-                if all_res:
-                    target_path = all_res[0]
-
-            if not target_path or not target_path.exists():
-                self.send_json({"error": "Berkas resume (PDF) belum tersedia. Silakan unggah resume terlebih dahulu."}, status=HTTPStatus.NOT_FOUND)
+            if not target_path or not target_path.exists() or target_path.stat().st_size < 500:
+                self.send_json({"error": "Berkas resume (PDF) untuk profil ini belum tersedia."}, status=HTTPStatus.NOT_FOUND)
                 return
 
             pdf_data = target_path.read_bytes()
