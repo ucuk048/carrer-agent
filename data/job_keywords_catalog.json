@@ -1,0 +1,165 @@
+{
+  "network_security": {
+    "name": "Keamanan Siber & Jaringan",
+    "icon": "shield",
+    "keywords": [
+      "Network Engineer",
+      "Cybersecurity",
+      "Penetration Tester",
+      "Cyber Security Specialist",
+      "SOC Analyst",
+      "System Network Security Engineer",
+      "Information Security Officer",
+      "Network Administrator",
+      "Network Installation",
+      "IT Infrastructure Engineer"
+    ]
+  },
+  "software_engineering": {
+    "name": "Software Engineering & IT",
+    "icon": "code",
+    "keywords": [
+      "Software Engineer",
+      "Backend Developer",
+      "Frontend Developer",
+      "Full Stack Developer",
+      "Junior Developer",
+      "Mobile Developer",
+      "Android Developer",
+      "DevOps Engineer",
+      "Software Tester",
+      "QA Engineer",
+      "Site Reliability Engineer"
+    ]
+  },
+  "it_support_hardware": {
+    "name": "IT Support & Sistem",
+    "icon": "desktop",
+    "keywords": [
+      "IT Support",
+      "Staff IT Support",
+      "IT Helpdesk",
+      "Technical Support",
+      "System Administrator",
+      "IT Officer",
+      "Engineer Onsite (EOS)",
+      "Field Service Engineer",
+      "Hardware Installation",
+      "IT Operations"
+    ]
+  },
+  "data_ai": {
+    "name": "Data, AI & Analitik",
+    "icon": "database",
+    "keywords": [
+      "Data Analyst",
+      "Data Scientist",
+      "Data Engineer",
+      "Business Intelligence Analyst",
+      "Machine Learning Engineer",
+      "AI Engineer",
+      "Database Administrator",
+      "Big Data Specialist"
+    ]
+  },
+  "marketing_growth": {
+    "name": "Marketing & Komunikasi",
+    "icon": "megaphone",
+    "keywords": [
+      "Digital Marketing",
+      "Social Media Specialist",
+      "Content Creator",
+      "SEO Specialist",
+      "Copywriter",
+      "Brand Manager",
+      "Performance Marketing Specialist",
+      "Growth Marketer",
+      "Public Relations (PR)",
+      "Marketing Communications",
+      "Event Specialist"
+    ]
+  },
+  "sales_business": {
+    "name": "Penjualan & Business Development",
+    "icon": "trending-up",
+    "keywords": [
+      "Business Development",
+      "Account Executive",
+      "Sales Representative",
+      "B2B Sales Specialist",
+      "Sales Executive",
+      "Telesales Specialist",
+      "Client Relationship Specialist",
+      "Partnership Specialist",
+      "Key Account Specialist"
+    ]
+  },
+  "design_creative": {
+    "name": "Desain, Multimedia & Kreatif",
+    "icon": "brush",
+    "keywords": [
+      "UI/UX Designer",
+      "Graphic Designer",
+      "Product Designer",
+      "Video Editor",
+      "Motion Graphic Designer",
+      "Web Designer",
+      "Creative Lead",
+      "Visual Designer"
+    ]
+  },
+  "finance_accounting": {
+    "name": "Keuangan, Akuntansi & Pajak",
+    "icon": "briefcase",
+    "keywords": [
+      "Accountant",
+      "Staff Accounting",
+      "Financial Analyst",
+      "Tax Specialist",
+      "Auditor",
+      "Finance Officer",
+      "Account Payable Specialist",
+      "Account Receivable Specialist",
+      "Payroll Specialist"
+    ]
+  },
+  "human_resources": {
+    "name": "Human Resources & Rekrutmen",
+    "icon": "users",
+    "keywords": [
+      "HR Generalist",
+      "Recruiter",
+      "Talent Acquisition Specialist",
+      "HRBP (HR Business Partner)",
+      "People Operations Specialist",
+      "Compensation and Benefits Specialist",
+      "Training and Development Specialist"
+    ]
+  },
+  "operations_admin": {
+    "name": "Operasional, Admin & Layanan",
+    "icon": "clipboard",
+    "keywords": [
+      "Administrative Assistant",
+      "Office Administrator",
+      "Operations Officer",
+      "Customer Service Representative",
+      "Supply Chain Specialist",
+      "Logistics Specialist",
+      "Procurement Specialist"
+    ]
+  },
+  "product_management": {
+    "name": "Product & Project Management",
+    "icon": "layers",
+    "keywords": [
+      "Product Manager",
+      "Associate Product Manager",
+      "Product Owner",
+      "Project Manager",
+      "Scrum Master",
+      "Business Analyst",
+      "Project Coordinator"
+    ]
+  }
+}

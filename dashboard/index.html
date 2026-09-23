@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="id" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Career Agent — Otomasi pencarian dan pengisian formulir LinkedIn Easy Apply secara cepat, terstruktur, dan aman." />
+    <title>LinkedIn Auto Applier — Career Agent</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/vendor/datatables.min.css" />
+    <link rel="stylesheet" href="dashboard.css" />
+  </head>
+  <body>
+    <!-- Top Navigation Header -->
+    <header class="site-header">
+      <div class="nav-cluster-left">
+        <a class="brand" href="/dashboard" aria-label="Career Agent">
+          <span class="brand-badge">CA</span>
+          <span class="brand-text">Career Agent</span>
+          <span class="brand-subtitle">AutoApplier</span>
+        </a>
+        <div class="nav-divider" aria-hidden="true"></div>
+        <a class="nav-link-home" href="/" title="Kembali ke Landing Page">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <span>Beranda</span>
+        </a>
+      </div>
+
+      <div class="nav-cluster-right">
+        <a id="btn-system-diagnostics" class="btn btn-secondary" href="/api/system/diagnostics" target="_blank" rel="noopener noreferrer" style="height: 36px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; padding: 0 14px;" title="Buka Diagnostik Sistem">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <span>Diagnostik Sistem</span>
+        </a>
+        <div class="nav-divider" aria-hidden="true"></div>
+        <button id="btn-open-profile" class="btn btn-secondary" type="button" style="height: 36px; font-size: 13px; padding: 0 14px;">
+          Data Pelamar
+        </button>
+        <button id="btn-linkedin-status" class="linkedin-status-pill" type="button" title="Klik untuk mengelola akun LinkedIn">
+          <span id="linkedin-dot" class="status-dot"></span>
+          <span id="linkedin-account-label">LinkedIn: Memeriksa...</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="main-shell">
+      <!-- Intro Section -->
+      <section class="page-intro">
+        <div>
+          <h1 class="page-title">Otomasi Pelamar Kerja LinkedIn</h1>
+          <p class="page-desc">
+            Sistem otomatis untuk mencari lowongan, memvalidasi kualifikasi, dan mengisi formulir LinkedIn Easy Apply dengan kendali penuh.
+          </p>
+        </div>
+      </section>
+
+      <!-- Connected LinkedIn Profile Banner -->
+      <section id="banner-connected-profile" class="connected-profile-card" style="display: none;">
+        <div class="connected-profile-inner">
+          <div class="profile-avatar-circle" id="profile-avatar-display">
+            <span id="profile-avatar-initials">U</span>
+          </div>
+          <div class="profile-info-block">
+            <div class="profile-title-row">
+              <h2 class="profile-name-text" id="profile-banner-name">Memuat profil...</h2>
+              <span class="profile-status-badge">
+                <span class="status-dot active" style="width: 6px; height: 6px; margin: 0;"></span> LinkedIn Terhubung
+              </span>
+            </div>
+            <p class="profile-headline-text" id="profile-banner-headline">Software Engineer & Technology Professional</p>
+            <div class="profile-skills-row" id="profile-banner-skills">
+              <!-- Dynamically populated skills pills -->
+            </div>
+          </div>
+          <div class="profile-action-block">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="openProfileModal()">
+              Kelola Data
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Panel 1: Pemindai Lowongan (Job Radar Scanner) -->
+      <section class="card scanner-card" aria-labelledby="scanner-heading">
+        <div class="card-header">
+          <div>
+            <h2 id="scanner-heading" class="card-title">1. Pemindai Lowongan (Job Radar)</h2>
+            <p class="card-subtitle">Pindai dan kumpulkan lowongan LinkedIn Easy Apply baru ke database radar.</p>
+          </div>
+          <span class="badge-tag">Pencarian & Impor</span>
+        </div>
+
+        <form id="form-job-scanner" onsubmit="event.preventDefault();">
+          <div class="control-grid">
+            <div class="form-group">
+              <label class="form-label" for="select-category">Kategori Bidang Pekerjaan</label>
+              <select id="select-category" class="form-select" onchange="handleCategoryChange()">
+                <option value="profile_skills" selected>Sesuai Keahlian Profil Anda</option>
+                <option value="network_security">Keamanan Siber & Jaringan</option>
+                <option value="software_engineering">Software Engineering & IT</option>
+                <option value="it_support_hardware">IT Support & Sistem</option>
+                <option value="data_ai">Data, AI & Analitik</option>
+                <option value="marketing_growth">Marketing & Komunikasi</option>
+                <option value="sales_business">Penjualan & Business Development</option>
+                <option value="design_creative">Desain, Multimedia & Kreatif</option>
+                <option value="finance_accounting">Keuangan, Akuntansi & Pajak</option>
+                <option value="human_resources">Human Resources & Rekrutmen</option>
+                <option value="operations_admin">Operasional, Admin & Layanan</option>
+                <option value="product_management">Product & Project Management</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="input-keywords">Kata Kunci Posisi</label>
+              <input
+                id="input-keywords"
+                class="form-input"
+                type="text"
+                placeholder="Contoh: Network Engineer, Cybersecurity, Software Engineer"
+                value=""
+                required
+              />
+              <div id="quick-keywords-container" class="quick-keywords-row" style="display: none;">
+                <span id="quick-keywords-label" class="quick-keywords-hint">Pilihan Cepat:</span>
+                <div id="quick-skill-pills" class="quick-skill-pills"></div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="input-location">Lokasi Kerja</label>
+              <input
+                id="input-location"
+                class="form-input"
+                type="text"
+                placeholder="Contoh: Indonesia, Jakarta, Remote"
+                value="Indonesia"
+                required
+              />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="select-scan-limit">Kuota Pemindaian</label>
+              <select id="select-scan-limit" class="form-select" onchange="handleScanLimitChange()">
+                <option value="5">5 Lowongan (Uji Cepat)</option>
+                <option value="10" selected>10 Lowongan (Standar)</option>
+                <option value="25">25 Lowongan</option>
+                <option value="50">50 Lowongan</option>
+                <option value="all">Semua Lowongan Tersedia</option>
+                <option value="custom">Kustom Jumlah...</option>
+              </select>
+              <input
+                id="input-custom-scan-limit"
+                class="form-input"
+                type="number"
+                min="1"
+                max="200"
+                placeholder="Jumlah kuota (misal: 15)"
+                style="display: none; margin-top: 8px;"
+              />
+            </div>
+          </div>
+
+          <div class="action-bar" style="margin-top: 16px;">
+            <button id="btn-scan-jobs" class="btn btn-primary" type="button" onclick="executeJobScanner()">
+              Pindai Lowongan LinkedIn
+            </button>
+            <button id="btn-refresh-jobs" class="btn btn-secondary" type="button" onclick="loadJobs(true)">
+              Segarkan Data Radar
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Panel 2: Pengirim Lamaran Otomatis (Auto Apply Engine) -->
+      <section class="card apply-engine-card" aria-labelledby="apply-engine-heading">
+        <div class="card-header">
+          <div>
+            <h2 id="apply-engine-heading" class="card-title">2. Pengirim Lamaran Otomatis (Auto Apply)</h2>
+            <p class="card-subtitle">Kirim formulir Easy Apply otomatis untuk lowongan yang telah masuk ke tabel radar.</p>
+          </div>
+          <span class="badge-tag">Eksekutor Formulir</span>
+        </div>
+
+        <form id="form-auto-apply" onsubmit="event.preventDefault();">
+          <!-- Mode Selection -->
+          <label class="mode-selector-label">Pilihan Mode Pengiriman</label>
+          <div class="mode-grid">
+            <div id="card-mode-dry-run" class="mode-card selected" onclick="selectMode('dry_run')">
+              <div class="mode-header">
+                <span class="mode-title">Mode Simulasi (Dry Run)</span>
+                <span class="mode-badge badge-safe">100% Aman</span>
+              </div>
+              <p class="mode-desc">
+                Bot mengisi formulir hingga tahap tinjau dan mengambil screenshot bukti tanpa menekan tombol kirim akhir.
+              </p>
+            </div>
+
+            <div id="card-mode-live" class="mode-card" onclick="selectMode('live')">
+              <div class="mode-header">
+                <span class="mode-title">Mode Kirim Langsung (Live Apply)</span>
+                <span class="mode-badge badge-live">Kirim Nyata</span>
+              </div>
+              <p class="mode-desc">
+                Bot mengisi formulir dan langsung menekan tombol kirim formulir ke rekruter LinkedIn.
+              </p>
+            </div>
+          </div>
+
+          <div class="control-grid" style="margin-top: 16px;">
+            <div class="form-group">
+              <label class="form-label" for="select-apply-category">Bidang Pekerjaan Target</label>
+              <select id="select-apply-category" class="form-select" onchange="handleApplyCategoryChange()">
+                <option value="all" selected>Semua Bidang di Radar</option>
+                <option value="profile_skills">Sesuai Keahlian Profil Anda</option>
+                <option value="network_security">Keamanan Siber & Jaringan</option>
+                <option value="software_engineering">Software Engineering & IT</option>
+                <option value="it_support_hardware">IT Support & Sistem</option>
+                <option value="data_ai">Data, AI & Analitik</option>
+                <option value="marketing_growth">Marketing & Komunikasi</option>
+                <option value="sales_business">Penjualan & Business Development</option>
+                <option value="design_creative">Desain, Multimedia & Kreatif</option>
+                <option value="finance_accounting">Keuangan, Akuntansi & Pajak</option>
+                <option value="human_resources">Human Resources & Rekrutmen</option>
+                <option value="operations_admin">Operasional, Admin & Layanan</option>
+                <option value="product_management">Product & Project Management</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="input-apply-keywords">Posisi / Kata Kunci Target</label>
+              <input
+                id="input-apply-keywords"
+                class="form-input"
+                type="text"
+                placeholder="Kosongkan untuk semua, atau misal: Cybersecurity"
+                value=""
+              />
+              <div id="apply-quick-keywords-container" class="quick-keywords-row" style="display: none;">
+                <span id="apply-quick-keywords-label" class="quick-keywords-hint">Pilihan Cepat:</span>
+                <div id="apply-quick-skill-pills" class="quick-skill-pills"></div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="input-apply-location">Lokasi Target</label>
+              <input
+                id="input-apply-location"
+                class="form-input"
+                type="text"
+                placeholder="Kosongkan untuk semua, atau misal: Makassar, Jakarta, Remote"
+                value=""
+              />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="select-min-score">Filter Minimal Skor Kesesuaian</label>
+              <select id="select-min-score" class="form-select">
+                <option value="0" selected>Semua Skor Lowongan</option>
+                <option value="70">Minimal 70% Kecocokan</option>
+                <option value="75">Minimal 75% Kecocokan (Rekomendasi)</option>
+                <option value="80">Minimal 80% Kecocokan Tinggi</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="select-apply-limit">Batas Kirim Per Sesi</label>
+              <select id="select-apply-limit" class="form-select" onchange="handleApplyLimitChange()">
+                <option value="3">3 Lowongan</option>
+                <option value="5" selected>5 Lowongan (Direkomendasikan)</option>
+                <option value="10">10 Lowongan</option>
+                <option value="25">25 Lowongan</option>
+                <option value="all">Semua Lowongan Siap Lamar</option>
+                <option value="custom">Kustom Jumlah...</option>
+              </select>
+              <input
+                id="input-custom-apply-limit"
+                class="form-input"
+                type="number"
+                min="1"
+                max="200"
+                placeholder="Jumlah kirim (misal: 8)"
+                style="display: none; margin-top: 8px;"
+              />
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="action-bar" style="margin-top: 16px;">
+            <button id="btn-start-apply" class="btn btn-primary" type="button" onclick="startAutoApply()">
+              Mulai Kirim Lamaran
+            </button>
+            <button id="btn-stop-apply" class="btn btn-danger" type="button" style="display: none;" onclick="stopAutoApply()">
+              Hentikan Proses
+            </button>
+            <span class="text-hint" style="font-size: 12px; color: var(--text-secondary); margin-left: 8px;">
+              Tip: Anda juga dapat mencentang baris spesifik di tabel lalu klik "Lamar Terpilih".
+            </span>
+          </div>
+        </form>
+      </section>
+
+      <!-- Live Monitor & Log Activity Box -->
+      <section id="monitor-card" class="card monitor-card" aria-live="polite">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Status Eksekusi Bot: <span id="monitor-status-badge" style="color: var(--brand-blue);">Sedang Berjalan...</span></h2>
+            <p id="monitor-step-desc" class="card-subtitle">Menyiapkan peramban otomatis...</p>
+          </div>
+          <span id="monitor-counter" style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">0 / 0</span>
+        </div>
+
+        <div class="progress-container">
+          <div id="progress-bar" class="progress-bar"></div>
+        </div>
+
+        <div id="terminal-box" class="terminal-box">
+          <!-- Terminal log lines injected via JavaScript -->
+        </div>
+      </section>
+
+      <!-- Jobs & History Table Card -->
+      <section class="card" aria-labelledby="jobs-heading">
+        <div class="card-header">
+          <div>
+            <h2 id="jobs-heading" class="card-title">Daftar Lowongan & Riwayat</h2>
+            <p class="card-subtitle">Semua lowongan yang dipindai, disimulasikan, atau dikirimkan.</p>
+          </div>
+        </div>
+
+        <!-- Filter and Search Row -->
+        <div class="table-filter-bar">
+          <div class="filter-pills">
+            <button id="filter-all" class="filter-btn active" type="button" onclick="setTableFilter('all')">
+              Semua (<span id="count-all">0</span>)
+            </button>
+            <button id="filter-pending" class="filter-btn" type="button" onclick="setTableFilter('pending')">
+              Siap Lamar (<span id="count-pending">0</span>)
+            </button>
+            <button id="filter-applied" class="filter-btn" type="button" onclick="setTableFilter('applied')">
+              Terkirim / Simulasi (<span id="count-applied">0</span>)
+            </button>
+            <button id="filter-external" class="filter-btn" type="button" onclick="setTableFilter('external')">
+              Eksternal (<span id="count-external">0</span>)
+            </button>
+          </div>
+
+          <div style="display: flex; gap: 8px; flex: 1; justify-content: flex-end; align-items: center;">
+            <input
+              id="input-search-jobs"
+              class="search-input"
+              type="search"
+              name="filter_job_keyword_search"
+              placeholder="Cari posisi atau perusahaan..."
+              autocomplete="new-password"
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
+              oninput="handleSearchJobs(this.value)"
+              style="max-width: 240px;"
+            />
+            <button class="btn btn-secondary" type="button" onclick="loadJobs(true)" title="Segarkan data tabel dari database lokal" style="height: 38px; font-size: 12px; padding: 0 12px; white-space: nowrap;">
+              Segarkan Tabel
+            </button>
+          </div>
+        </div>
+
+        <!-- Batch Actions Bar -->
+        <div id="batch-actions-bar" class="batch-actions-bar" style="display: none;">
+          <div class="batch-actions-left">
+            <span class="batch-select-badge" id="batch-selected-count">0 Terpilih</span>
+            <span class="batch-hint">Aksi massal untuk lowongan terpilih:</span>
+          </div>
+          <div class="batch-actions-right">
+            <button id="btn-batch-apply" class="btn btn-primary btn-sm" type="button" onclick="handleBatchApplySelected()">
+              Lamar Terpilih (<span id="batch-apply-count">0</span>)
+            </button>
+            <button id="btn-batch-delete" class="btn btn-danger btn-sm" type="button" onclick="handleBatchDeleteSelected()">
+              Hapus Terpilih (<span id="batch-delete-count">0</span>)
+            </button>
+            <button class="btn btn-secondary btn-sm" type="button" onclick="clearJobSelection()">
+              Batal
+            </button>
+          </div>
+        </div>
+
+        <!-- Table Container -->
+        <div class="table-wrapper">
+          <table id="jobs-data-table" class="data-table display">
+            <thead>
+              <tr>
+                <th style="width: 36px; text-align: center; vertical-align: middle;">
+                  <input type="checkbox" id="checkbox-select-all" class="custom-checkbox" title="Pilih Semua di Halaman Ini" onchange="toggleSelectAllJobs(this.checked)" />
+                </th>
+                <th style="width: 44px; text-align: center;">No.</th>
+                <th>Posisi & Perusahaan</th>
+                <th>Lokasi</th>
+                <th>Kesesuaian</th>
+                <th>Status</th>
+                <th style="text-align: right;">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="jobs-table-body">
+              <tr>
+                <td colspan="7" class="empty-state">
+                  <p class="empty-state-title">Memuat daftar lowongan...</p>
+                  <p class="empty-state-desc">Sinkronisasi data lowongan dari database lokal.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer Bersih Dashboard -->
+    <footer style="padding: 24px 0 32px; border-top: 1px solid var(--border-subtle); margin-top: 40px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--text-muted); max-width: 1360px; margin-left: auto; margin-right: auto; padding-left: 24px; padding-right: 24px; flex-wrap: wrap; gap: 12px;">
+      <div>© 2026 Career Agent. Semua hak dilindungi.</div>
+      <div style="display: flex; gap: 16px; align-items: center;">
+        <a href="/api/system/diagnostics" target="_blank" rel="noopener noreferrer" style="color: var(--text-secondary); text-decoration: none;">Diagnostik Sistem</a>
+        <a href="/" style="color: var(--text-secondary); text-decoration: none;">Beranda</a>
+      </div>
+    </footer>
+
+    <!-- Modal 1: Kelola Login LinkedIn -->
+    <div id="modal-linkedin" class="modal-backdrop" onclick="if(event.target === this) closeLinkedInModal()">
+      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-li-title">
+        <div class="modal-header">
+          <h3 id="modal-li-title" class="modal-title">Koneksi Akun LinkedIn</h3>
+          <button class="modal-close-btn" type="button" onclick="closeLinkedInModal()">✕</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size: 13px; color: var(--text-secondary);">
+            LinkedIn AutoApplier menggunakan sesi terautentikasi Anda untuk mengisi formulir Easy Apply secara langsung dari peramban Anda.
+          </p>
+
+          <div id="li-active-status-card" style="padding: 12px; background: var(--bg-surface-secondary); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); display: none;">
+            <strong style="font-size: 13px; color: var(--text-primary); display: block; margin-bottom: 2px;" id="li-account-name-full">Akun Terhubung</strong>
+            <span style="font-size: 12px; color: var(--success); font-weight: 600;">Sesi aktif dan siap digunakan</span>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <button id="btn-browser-login" class="btn btn-primary" type="button" onclick="startInteractiveLogin()" style="width: 100%;">
+              Buka Jendela Login Chromium (Rekomendasi)
+            </button>
+            <p style="font-size: 12px; color: var(--text-muted); line-height: 1.4;">
+              Jendela peramban akan terbuka otomatis di layar Anda. Masuk ke LinkedIn seperti biasa, sistem akan membaca sesi aktif dan menutup jendela saat selesai.
+            </p>
+          </div>
+
+          <div id="login-progress-indicator" style="display: none; padding: 12px; background: #e0f2fe; border-radius: var(--radius-sm); border: 1px solid #bae6fd;">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+              <span id="login-progress-text" style="font-size: 12px; color: #0284c7; font-weight: 600;">Menunggu proses login di peramban...</span>
+              <button type="button" onclick="cancelInteractiveLogin()" style="background: none; border: none; color: #dc2626; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: underline; padding: 0;">Batalkan</button>
+            </div>
+            <p style="margin-top: 6px; font-size: 11px; color: #0369a1; line-height: 1.4;">
+              Catatan: Jika jendela browser tidak muncul di monitor (karena background process Windows), Anda bisa jalankan file <strong>buka_login_linkedin.bat</strong> di folder proyek, atau masukkan cookie manual di bawah.
+            </p>
+          </div>
+
+          <details open style="margin-top: 10px; border-top: 1px solid var(--border-subtle); padding-top: 12px;">
+            <summary style="font-size: 12px; color: var(--text-primary); cursor: pointer; font-weight: 600;">
+              Opsi Manual: Masukkan Cookie li_at (Instan &amp; 100% Berhasil)
+            </summary>
+            <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+              <div style="font-size: 11px; color: var(--text-secondary); background: var(--bg-surface-secondary); padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); line-height: 1.5;">
+                <strong>Cara ambil cookie li_at (15 detik):</strong><br>
+                1. Buka LinkedIn di peramban Chrome/Edge biasa yang sudah Anda gunakan.<br>
+                2. Tekan <strong>F12</strong> (atau Klik Kanan &rarr; Inspect) &rarr; buka tab <strong>Application</strong> &rarr; <strong>Cookies</strong> &rarr; <strong>https://www.linkedin.com</strong>.<br>
+                3. Cari nama <strong>li_at</strong>, salin (copy) nilainya, lalu tempel (paste) di bawah ini.
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <input id="input-li-at" class="form-input" type="password" placeholder="Paste nilai cookie li_at di sini..." style="flex: 1;" />
+                <button class="btn btn-secondary" type="button" onclick="saveManualCookie()" style="height: 38px; font-size: 12px; white-space: nowrap;">
+                  Simpan Cookie
+                </button>
+              </div>
+            </div>
+          </details>
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+          <div style="display: flex; gap: 8px;">
+            <button id="btn-disconnect-li" class="btn btn-danger" type="button" onclick="disconnectLinkedIn()" style="display: none;">
+              Putuskan Akun
+            </button>
+            <button id="btn-sync-linkedin-modal" class="btn btn-secondary" type="button" onclick="syncCandidateFromLinkedIn()" style="display: none;">
+              Sinkronkan Profil
+            </button>
+          </div>
+          <button class="btn btn-secondary" type="button" onclick="closeLinkedInModal()">
+            Tutup
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal 2: Pengaturan Data Pelamar -->
+    <div id="modal-profile" class="modal-backdrop" onclick="if(event.target === this) closeProfileModal()">
+      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-prof-title">
+        <div class="modal-header">
+          <h3 id="modal-prof-title" class="modal-title">Data Diri Pelamar</h3>
+          <button class="modal-close-btn" type="button" onclick="closeProfileModal()">✕</button>
+        </div>
+        <div class="modal-body">
+          <div id="modal-avatar-card" style="display: flex; align-items: center; gap: 14px; margin-bottom: 16px; padding: 10px 14px; background: var(--bg-surface-secondary); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+            <div class="profile-avatar-circle" id="modal-avatar-display" style="width: 44px; height: 44px;">
+              <span id="modal-avatar-initials">U</span>
+            </div>
+            <div>
+              <div style="font-size: 14px; font-weight: 600; color: var(--text-primary);" id="modal-avatar-name">Profil LinkedIn</div>
+              <div style="font-size: 12px; color: var(--text-muted);" id="modal-avatar-status">Foto profil tersinkronisasi otomatis</div>
+            </div>
+          </div>
+
+          <p style="font-size: 13px; color: var(--text-secondary);">
+            Data ini digunakan otomatis oleh bot untuk menjawab pertanyaan screening pada formulir Easy Apply (nomor kontak, pengalaman, dan headline).
+          </p>
+
+          <div class="form-group">
+            <label class="form-label" for="prof-fullname">Nama Lengkap <span class="required-star">*</span></label>
+            <input id="prof-fullname" class="form-input" type="text" placeholder="Contoh: Nama Lengkap Anda" required />
+            <div id="err-prof-fullname" class="field-error-msg">Nama lengkap wajib diisi minimal 3 karakter.</div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label class="form-label" for="prof-phone">Nomor Telepon / WhatsApp <span class="required-star">*</span></label>
+              <input id="prof-phone" class="form-input" type="tel" placeholder="Contoh: 081234567890" required />
+              <div id="err-prof-phone" class="field-error-msg">Format nomor telepon tidak valid. Gunakan format 08... atau +628... (10-14 digit).</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="prof-location">Lokasi Domisili <span class="required-star">*</span></label>
+              <input id="prof-location" class="form-input" type="text" placeholder="Contoh: Jakarta, Indonesia" required />
+              <div id="err-prof-location" class="field-error-msg">Lokasi domisili wajib diisi.</div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="prof-headline">Peran Utama / Headline <span class="required-star">*</span></label>
+            <input id="prof-headline" class="form-input" type="text" placeholder="Contoh: Software Engineer / Marketing Specialist / Data Analyst" required />
+            <div id="err-prof-headline" class="field-error-msg">Peran utama / headline wajib diisi.</div>
+          </div>
+
+          <!-- Resume / CV Upload Section -->
+          <div class="form-group">
+            <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+              <span>Berkas Resume / CV (PDF)</span>
+              <span id="prof-resume-badge" class="resume-badge">Belum ada file</span>
+            </label>
+            <div class="resume-upload-box">
+              <input id="prof-resume-input" type="file" accept=".pdf" style="display: none;" onchange="uploadCandidateResume(this)" />
+              <button type="button" class="btn btn-secondary" onclick="document.getElementById('prof-resume-input').click()" style="height: 36px; padding: 0 14px; font-size: 13px;">
+                Unggah File PDF
+              </button>
+              <span id="prof-resume-filename" class="resume-filename-text">Pilih file PDF untuk ekstraksi skill otomatis</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="prof-skills">Keahlian & Kata Kunci (Pisahkan dengan koma) <span class="required-star">*</span></label>
+            <input id="prof-skills" class="form-input" type="text" placeholder="Contoh: Python, SQL, Docker, Manajemen Proyek, Komunikasi" required />
+            <div id="err-prof-skills" class="field-error-msg">Keahlian wajib diisi minimal 2 keahlian.</div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label class="form-label" for="prof-experience">Pengalaman (Tahun) <span class="required-star">*</span></label>
+              <input id="prof-experience" class="form-input" type="number" min="0" max="40" value="3" required />
+              <div id="err-prof-experience" class="field-error-msg">Pengalaman kerja wajib diisi (minimal 0 tahun).</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="prof-salary">Ekspektasi Gaji Bulanan (IDR) <span class="required-star">*</span></label>
+              <input id="prof-salary" class="form-input" type="number" step="500000" min="1000000" value="15000000" required />
+              <div id="err-prof-salary" class="field-error-msg">Ekspektasi gaji minimal IDR 1.000.000.</div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+          <button id="btn-sync-profile" class="btn btn-secondary" type="button" onclick="syncCandidateFromLinkedIn()">
+            Tarik Data dari LinkedIn
+          </button>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-secondary" type="button" onclick="closeProfileModal()">Batal</button>
+            <button class="btn btn-primary" type="button" onclick="saveProfileData()">Simpan Data</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal 3: Pratinjau Screenshot Bukti Form -->
+    <div id="modal-screenshot" class="modal-backdrop" onclick="if(event.target === this) closeScreenshotModal()">
+      <div class="modal-dialog modal-large" role="dialog" aria-modal="true" aria-labelledby="modal-shot-title">
+        <div class="modal-header">
+          <div>
+            <h3 id="modal-shot-title" class="modal-title">Bukti Formulir LinkedIn Easy Apply</h3>
+            <span id="modal-shot-subtitle" style="font-size: 12px; color: var(--text-muted);">Tangkapan layar pengisian formulir otomatis</span>
+          </div>
+          <button class="modal-close-btn" type="button" onclick="closeScreenshotModal()">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="screenshot-container">
+            <img id="screenshot-view-img" class="screenshot-img" src="" alt="Bukti pengisian Easy Apply" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <a id="screenshot-open-tab-btn" class="btn btn-secondary" href="" target="_blank" rel="noopener noreferrer">
+            Buka Gambar Asli
+          </a>
+          <button class="btn btn-primary" type="button" onclick="closeScreenshotModal()">
+            Selesai
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast" style="display: none;" role="status"></div>
+
+    <script src="/vendor/jquery.min.js"></script>
+    <script src="/vendor/datatables.min.js"></script>
+    <script src="dashboard.js"></script>
+  </body>
+</html>

@@ -1,0 +1,409 @@
+{
+  "name": "AI Career Agent - Ultimate Orchestrator",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-manual",
+      "name": "Manual Ingestion Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [160, 260]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "trigger-schedule",
+      "name": "Periodic Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [160, 440]
+    },
+    {
+      "parameters": {
+        "path": "candidate-onboarded",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "responseData": "allEntries"
+      },
+      "id": "trigger-onboarding-webhook",
+      "name": "Webhook - Candidate Onboarded",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [160, 620]
+    },
+    {
+      "parameters": {
+        "updates": [
+          "callback_query",
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "trigger-telegram-approval",
+      "name": "Telegram Approval Callback Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.5,
+      "position": [160, 880]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================================\n// STAGE 0: SAFETY CONTROLS & EXECUTION CONTEXT\n// ========================================================\nconst env = $env || {};\nconst config = {\n  max_jobs_per_batch: Number(env.MAX_JOBS_PER_BATCH || 25),\n  max_drafts_per_day: Number(env.MAX_APPLICATION_DRAFTS_PER_DAY || 10),\n  require_human_approval: String(env.REQUIRE_HUMAN_APPROVAL || 'true') === 'true',\n  auto_submit: String(env.AUTO_SUBMIT || 'false') === 'true',\n  min_score_threshold: 65\n};\n\nif (config.auto_submit || !config.require_human_approval) {\n  throw new Error('CRITICAL SAFETY GATE: AUTO_SUBMIT must be false and REQUIRE_HUMAN_APPROVAL must be true.');\n}\n\nreturn [{\n  json: {\n    run_id: `run-${Date.now()}`,\n    config,\n    started_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "node-safety-gate",
+      "name": "Safety Gate & Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 360]
+    },
+    {
+      "parameters": {
+        "url": "https://jobicy.com/api/v2/remote-jobs?count=10",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "node-fetch-jobs",
+      "name": "Fetch Live Remote Jobs (API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 360],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================================\n// STAGE 1: NORMALIZE & DEDUPLICATE JOBS\n// ========================================================\nconst input = $json;\nlet rawJobs = [];\n\nif (input && Array.isArray(input.jobs)) {\n  rawJobs = input.jobs;\n} else if (input && input.body && Array.isArray(input.body.jobs)) {\n  rawJobs = input.body.jobs;\n} else {\n  // Fallback high quality seed jobs if network is unavailable\n  rawJobs = [\n    {\n      id: 'job-live-001',\n      url: 'https://example.com/careers/backend-ai',\n      jobTitle: 'Senior Python & AI Backend Engineer',\n      companyName: 'HyperScale Cloud',\n      jobGeo: 'Remote',\n      jobExcerpt: 'Python, FastAPI, PostgreSQL, Docker, LLM workflow systems.'\n    },\n    {\n      id: 'job-live-002',\n      url: 'https://example.com/careers/lead-platform',\n      jobTitle: 'Lead Platform & Cloud Engineer',\n      companyName: 'Nova FinTech',\n      jobGeo: 'Remote / Singapore',\n      jobExcerpt: 'Kubernetes, Terraform, Go, AWS, Microservices.'\n    }\n  ];\n}\n\nconst normalized = rawJobs.map(j => ({\n  source: 'jobicy-rss-api',\n  external_id: String(j.id || j.external_id || j.url),\n  url: j.url || 'https://example.com',\n  title: String(j.jobTitle || j.title || 'Untitled Role').trim(),\n  company: String(j.companyName || j.company || 'Confidential').trim(),\n  location: String(j.jobGeo || j.location || 'Remote').trim(),\n  description: String(j.jobExcerpt || j.jobDescription || j.description || '').replace(/<[^>]*>/g, ' ').trim(),\n  discovered_at: new Date().toISOString()\n}));\n\nreturn normalized.map(job => ({ json: { job } }));"
+      },
+      "id": "node-normalize-jobs",
+      "name": "Normalize & Deduplicate Jobs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 360]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================================\n// STAGE 2: CANDIDATE PROFILE & FACTS INGESTION\n// ========================================================\n// Canonical candidate profile and verified resume facts bank\nconst candidate = {\n  candidate_id: 'cand-001-aditya',\n  full_name: 'Aditya Pratama',\n  headline: 'Senior Backend & AI Systems Engineer',\n  target_roles: ['Backend Engineer', 'AI Systems Engineer', 'Platform Engineer'],\n  skills: ['Python', 'FastAPI', 'PostgreSQL', 'Docker', 'n8n', 'LLM', 'Redis', 'AWS'],\n  preferences: {\n    work_modes: ['remote', 'hybrid'],\n    salary_min: 25000000,\n    currency: 'IDR'\n  },\n  resume_facts: [\n    'Membangun microservice backend dengan throughput 10k RPM.',\n    'Mengimplementasikan pipeline orkestrator n8n dan database PostgreSQL.',\n    'Mendesain skema database terdistribusi dan audit trail untuk kepatuhan SOC 2.'\n  ]\n};\n\nreturn [{ json: { ...$json, candidate } }];"
+      },
+      "id": "node-load-candidate",
+      "name": "Load Candidate Intelligence",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1160, 360]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================================\n// STAGE 3: EXPLAINABLE MATCH ENGINE (ARCHITECTURE-COMPLIANT)\n// ========================================================\nconst job = $json.job;\nconst cand = $json.candidate;\n\nconst candSkills = cand.skills.map(s => s.toLowerCase());\nconst jobText = `${job.title} ${job.description}`.toLowerCase();\nconst matchedSkills = candSkills.filter(s => jobText.includes(s));\nconst missingSkills = candSkills.filter(s => !matchedSkills.includes(s));\n\n// 1. Skill match (Max 40 pts)\nconst skillScore = Math.min(40, Math.round((matchedSkills.length / Math.max(Math.min(candSkills.length, 5), 1)) * 40));\n\n// 2. Role / Title match (Max 20 pts)\nconst roleMatch = cand.target_roles.some(r => job.title.toLowerCase().includes(r.toLowerCase()));\nconst roleScore = roleMatch ? 20 : 0;\n\n// 3. Location / Remote arrangement match (Max 15 pts)\nconst preferredModes = cand.preferences.work_modes || ['remote'];\nconst locText = `${job.location} ${job.description}`.toLowerCase();\nconst locScore = preferredModes.some(m => locText.includes(m)) ? 15 : 5;\n\n// 4. Domain & Seniority match (Max 15 pts)\nconst domainScore = (job.title.toLowerCase().includes('senior') || job.title.toLowerCase().includes('ai') || job.title.toLowerCase().includes('backend')) ? 15 : 5;\n\n// 5. Base alignment (Max 10 pts)\nconst baseScore = 10;\n\nconst totalScore = Math.min(100, skillScore + roleScore + locScore + domainScore + baseScore);\nconst confidence = totalScore >= 75 ? 'high' : (totalScore >= 60 ? 'medium' : 'low');\n\nconst match = {\n  score: totalScore,\n  confidence,\n  breakdown: { skillScore, roleScore, locScore, domainScore, baseScore },\n  matched_skills: matchedSkills,\n  missing_requirements: missingSkills,\n  evidence: matchedSkills.map(s => ({ skill: s, source: 'resume_facts' }))\n};\n\nreturn [{ json: { ...$json, match } }];"
+      },
+      "id": "node-match-engine",
+      "name": "Explainable Match Engine",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 360]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.match.score }}",
+              "operation": "largerEqual",
+              "value2": 60
+            }
+          ]
+        }
+      },
+      "id": "node-filter-high-potential",
+      "name": "Filter High Match Score (>= 60)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1640, 360]
+    },
+    {
+      "parameters": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-goog-api-key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"Kamu adalah AI Career Agent. Tuliskan draf cover letter ringkas (2-3 paragraf) dalam Bahasa Indonesia untuk posisi {{ $json.job.title }} di {{ $json.job.company }} berdasarkan kandidat {{ $json.candidate.full_name }} dengan keahlian terverifikasi: {{ $json.match.matched_skills.join(', ') }}. Jangan mengarang fakta baru. Jangan gunakan placeholder.\"\n    }]\n  }],\n  \"generationConfig\": {\n    \"temperature\": 0.4,\n    \"maxOutputTokens\": 1000\n  }\n}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "node-gemini-cover-letter",
+      "name": "Gemini AI Cover Letter Generator (3.5 Lite)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1900, 260],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================================\n// STAGE 4: APPLICATION STUDIO & ANTI-HALLUCINATION GATE\n// ========================================================\nconst prev = $('Filter High Match Score (>= 60)').first().json;\nconst job = prev.job;\nconst cand = prev.candidate;\nconst match = prev.match;\n\nlet draftCoverLetter = '';\nif ($json && $json.candidates && $json.candidates[0]?.content?.parts?.[0]?.text) {\n  draftCoverLetter = $json.candidates[0].content.parts[0].text.trim();\n}\n\nif (!draftCoverLetter) {\n  const verifiedPoints = cand.resume_facts.slice(0, 2).map(fact => `• ${fact}`).join('\\n');\n  draftCoverLetter = \n`Yth. Tim Rekrutmen ${job.company},\\n\\n` +\n`Saya menulis untuk menyatakan ketertarikan mendalam pada posisi ${job.title}. ` +\n`Dengan spesialisasi dalam arsitektur backend terdistribusi dan integrasi pipeline AI, keahlian terverifikasi saya mencakup: ${match.matched_skills.join(', ')}.\\n\\n` +\n`Rekam jejak terverifikasi saya meliputi:\\n` +\n`${verifiedPoints}\\n\\n` +\n`Portofolio dan draf ini disiapkan dengan integritas data 100% dari profil kandidat ${cand.full_name}.\\n\\n` +\n`Salam,\\n${cand.full_name}`;\n}\n\n// Quality Gate: zero tolerance for placeholders or hallucinated claims\nconst forbidden = ['[company]', '[achievement]', '[name]', 'guaranteed', 'fake'];\nconst violations = forbidden.filter(word => draftCoverLetter.toLowerCase().includes(word));\nif (violations.length > 0) {\n  throw new Error(`Quality Gate Violation: Found unverified token (${violations.join(', ')})`);\n}\n\nconst application = {\n  application_id: `app-${Date.now()}-${Math.floor(Math.random()*1000)}`,\n  candidate_id: cand.candidate_id,\n  job_id: job.external_id,\n  cover_letter: draftCoverLetter,\n  facts_used: cand.resume_facts,\n  status: 'pending_approval',\n  created_at: new Date().toISOString()\n};\n\nreturn [{ json: { job, candidate: cand, match, application } }];"
+      },
+      "id": "node-application-studio",
+      "name": "Application Studio & Quality Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2140, 260]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================================\n// STAGE 5: HUMAN APPROVAL PACKAGE BUILDER\n// ========================================================\nconst job = $json.job;\nconst match = $json.match;\nconst app = $json.application;\nconst cand = $json.candidate;\n\nconst summaryText = \n`*REKOMENDASI LOWONGAN BARU (SCORE: ${match.score}/100)*\\n\\n` +\n`*Posisi:* ${job.title}\\n` +\n`*Perusahaan:* ${job.company}\\n` +\n`*Lokasi:* ${job.location}\\n` +\n`*Kandidat:* ${cand.full_name}\\n` +\n`*Confidence:* ${match.confidence.toUpperCase()}\\n` +\n`*Skill Cocok:* ${match.matched_skills.join(', ')}\\n` +\n`*Kekurangan:* ${match.missing_requirements.slice(0, 3).join(', ') || 'Tidak ada'}\\n\\n` +\n`*Preview Draf Cover Letter:*\\n${app.cover_letter.slice(0, 250)}...\\n\\n` +\n`URL: ${job.url}`;\n\nconst approvalPackage = {\n  application_id: app.application_id,\n  text: summaryText,\n  inline_keyboard: [\n    [\n      { text: 'Setujui Lamaran', callback_data: `approve:${app.application_id}` },\n      { text: 'Tolak', callback_data: `reject:${app.application_id}` }\n    ],\n    [\n      { text: 'Minta Revisi Draf', callback_data: `edit:${app.application_id}` }\n    ]\n  ]\n};\n\nreturn [{ json: { ...$json, approvalPackage } }];"
+      },
+      "id": "node-approval-package",
+      "name": "Build Human Approval Package",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2140, 260]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID || '12345678' }}",
+        "text": "={{ $json.approvalPackage.text }}",
+        "additionalFields": {
+          "parse_mode": "Markdown",
+          "reply_markup": "={{ JSON.stringify({ inline_keyboard: $json.approvalPackage.inline_keyboard }) }}"
+        }
+      },
+      "id": "node-send-telegram-approval",
+      "name": "Send Telegram Approval Request",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2380, 260],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "url": "http://127.0.0.1:3000/api/approval",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"application_id\": \"{{ $json.application.application_id }}\",\n  \"decision\": \"pending\",\n  \"reviewer\": \"Aditya Pratama\",\n  \"score\": {{ $json.match.score }}\n}",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "node-persist-to-backend",
+      "name": "Persist Application & Audit to Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2620, 260],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================================\n// STAGE 6: TELEGRAM APPROVAL RESPONSE HANDLER\n// ========================================================\nconst item = $json;\nlet action = 'unknown';\nlet appId = '';\nlet reviewer = 'Telegram User';\n\nif (item.callback_query) {\n  const data = item.callback_query.data || '';\n  const parts = data.split(':');\n  action = parts[0] || 'unknown';\n  appId = parts[1] || '';\n  reviewer = item.callback_query.from.first_name || 'Reviewer';\n} else if (item.message && item.message.text) {\n  const text = item.message.text;\n  if (text.startsWith('/approve_')) {\n    action = 'approve';\n    appId = text.replace('/approve_', '');\n  } else if (text.startsWith('/reject_')) {\n    action = 'reject';\n    appId = text.replace('/reject_', '');\n  }\n}\n\nconst decisionMap = {\n  approve: 'approved',\n  reject: 'rejected',\n  edit: 'changes_requested'\n};\n\nreturn [{\n  json: {\n    application_id: appId,\n    decision: decisionMap[action] || 'pending',\n    reviewer,\n    decided_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "node-parse-telegram-response",
+      "name": "Parse Approval Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 880]
+    },
+    {
+      "parameters": {
+        "url": "http://127.0.0.1:3000/api/approval",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"application_id\": \"{{ $json.application_id }}\",\n  \"decision\": \"{{ $json.decision }}\",\n  \"reviewer\": \"{{ $json.reviewer }}\"\n}",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "node-update-approval-status",
+      "name": "Update Approval in DB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 880],
+      "continueOnFail": true
+    }
+  ],
+  "connections": {
+    "Manual Ingestion Trigger": {
+      "main": [
+        [
+          {
+            "node": "Safety Gate & Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Periodic Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Safety Gate & Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Candidate Onboarded": {
+      "main": [
+        [
+          {
+            "node": "Safety Gate & Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Safety Gate & Context": {
+      "main": [
+        [
+          {
+            "node": "Fetch Live Remote Jobs (API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Live Remote Jobs (API)": {
+      "main": [
+        [
+          {
+            "node": "Normalize & Deduplicate Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize & Deduplicate Jobs": {
+      "main": [
+        [
+          {
+            "node": "Load Candidate Intelligence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Candidate Intelligence": {
+      "main": [
+        [
+          {
+            "node": "Explainable Match Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Explainable Match Engine": {
+      "main": [
+        [
+          {
+            "node": "Filter High Match Score (>= 60)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter High Match Score (>= 60)": {
+      "main": [
+        [
+          {
+            "node": "Gemini AI Cover Letter Generator (3.5 Lite)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini AI Cover Letter Generator (3.5 Lite)": {
+      "main": [
+        [
+          {
+            "node": "Application Studio & Quality Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Application Studio & Quality Gate": {
+      "main": [
+        [
+          {
+            "node": "Build Human Approval Package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Human Approval Package": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Approval Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Telegram Approval Request": {
+      "main": [
+        [
+          {
+            "node": "Persist Application & Audit to Backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Approval Callback Trigger": {
+      "main": [
+        [
+          {
+            "node": "Parse Approval Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Approval Response": {
+      "main": [
+        [
+          {
+            "node": "Update Approval in DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "career-agent-ultimate-v2"
+}

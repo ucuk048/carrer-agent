@@ -1,0 +1,101 @@
+{
+  "name": "AI Career Agent - MVP - Human Approval",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Start batch",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const profile = { candidate_id: 'candidate-demo-001', target_roles: ['Backend Engineer'], skills: ['Python', 'FastAPI', 'PostgreSQL'], location: 'Singapore', work_modes: ['remote', 'hybrid'], consent: { require_approval_before_submit: true } };\nreturn [{ json: { profile, requested_at: new Date().toISOString() } }];"
+      },
+      "id": "load-profile",
+      "name": "Load candidate profile (replace)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const profile = $json.profile;\nconst jobs = [\n  { external_id: 'demo-001', source: 'example', title: 'Backend Engineer', company: 'Example Co', location: 'Singapore', work_mode: 'hybrid', url: 'https://example.com/jobs/demo-001', description: 'Python, FastAPI, PostgreSQL, Docker' },\n  { external_id: 'demo-002', source: 'example', title: 'Platform Engineer', company: 'Example Labs', location: 'Remote', work_mode: 'remote', url: 'https://example.com/jobs/demo-002', description: 'Python, AWS, Docker, Kubernetes' }\n];\nreturn jobs.map(job => ({ json: { profile, job } }));"
+      },
+      "id": "collect-jobs",
+      "name": "Collect jobs (replace with official API/RSS)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const profile = $json.profile;\nconst jobText = `${$json.job.title} ${$json.job.description}`.toLowerCase();\nconst matched = profile.skills.filter(skill => jobText.includes(skill.toLowerCase()));\nconst score = Math.min(100, Math.round((matched.length / Math.max(profile.skills.length, 1)) * 70 + (profile.target_roles.some(role => $json.job.title.toLowerCase().includes(role.toLowerCase())) ? 20 : 0) + ($json.job.work_mode && profile.work_modes.includes($json.job.work_mode) ? 10 : 0)));\nreturn [{ json: { ...$json, match: { score, matched_skills: matched, missing_skills: profile.skills.filter(skill => !matched.includes(skill)), confidence: matched.length ? 'medium' : 'low' } } }];"
+      },
+      "id": "score-job",
+      "name": "Score job match",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [940, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const { profile, job, match } = $json;\nconst coverLetter = `Draft cover letter for ${job.title} at ${job.company}.\\n\\nI am interested in this role because my experience aligns with: ${match.matched_skills.join(', ') || 'the role requirements'}.\\n\\nPlease verify every claim before submission.`;\nreturn [{ json: { ...$json, application_draft: { cover_letter: coverLetter, resume_version: 'current', facts_used: match.matched_skills, approval_status: 'PENDING_REVIEW' }, guardrail: { require_human_approval: profile.consent.require_approval_before_submit === true, auto_submit: false } } }];"
+      },
+      "id": "draft-application",
+      "name": "Generate application draft",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1180, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.guardrail.require_human_approval}}",
+              "operation": "isTrue"
+            }
+          ]
+        }
+      },
+      "id": "approval-gate",
+      "name": "Approval required",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1420, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, next_action: 'SEND_TO_APPROVAL_CHANNEL', message: `Review required: ${$json.job.title} at ${$json.job.company} (score ${$json.match.score}/100).` } }];"
+      },
+      "id": "send-for-approval",
+      "name": "Send to approval channel (replace)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1660, 220]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, next_action: 'SAVE_AS_DRAFT_ONLY', approval_status: 'NOT_REQUIRED_FOR_DRAFT', note: 'No external submission performed.' } }];"
+      },
+      "id": "save-draft",
+      "name": "Save draft only",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1660, 400]
+    }
+  ],
+  "connections": {
+    "Start batch": { "main": [[{ "node": "Load candidate profile (replace)", "type": "main", "index": 0 }]] },
+    "Load candidate profile (replace)": { "main": [[{ "node": "Collect jobs (replace with official API/RSS)", "type": "main", "index": 0 }]] },
+    "Collect jobs (replace with official API/RSS)": { "main": [[{ "node": "Score job match", "type": "main", "index": 0 }]] },
+    "Score job match": { "main": [[{ "node": "Generate application draft", "type": "main", "index": 0 }]] },
+    "Generate application draft": { "main": [[{ "node": "Approval required", "type": "main", "index": 0 }]] },
+    "Approval required": { "main": [[{ "node": "Send to approval channel (replace)", "type": "main", "index": 0 }], [{ "node": "Save draft only", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "career-agent-mvp-v1"
+}

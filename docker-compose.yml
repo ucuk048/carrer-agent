@@ -1,0 +1,63 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: careeros-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-career_agent}
+      POSTGRES_USER: ${POSTGRES_USER:-career_agent}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-career_agent_secret}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U career_agent -d career_agent"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: careeros-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - WEBHOOK_URL=http://localhost:5678/
+      - GENERIC_TIMEZONE=Asia/Jakarta
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:-careeros-secret-key-32-chars-long-x1}
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB:-career_agent}
+      - DB_POSTGRESDB_USER=${POSTGRES_USER:-career_agent}
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD:-career_agent_secret}
+    volumes:
+      - n8ndata:/home/node/.n8n
+      - ./workflows:/data/workflows:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    image: python:3.12-slim
+    container_name: careeros-web
+    restart: unless-stopped
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+    command: python server.py
+    depends_on:
+      - postgres
+
+volumes:
+  pgdata:
+  n8ndata:

@@ -1,0 +1,30 @@
+{
+  "candidate_id": "candidate-demo-001",
+  "name": "Nama Kandidat",
+  "headline": "Backend Engineer",
+  "location": "Singapore",
+  "work_authorization": ["Singapore"],
+  "target_roles": ["Backend Engineer", "Platform Engineer"],
+  "employment_types": ["full-time"],
+  "work_modes": ["remote", "hybrid"],
+  "salary": {
+    "currency": "SGD",
+    "minimum": 9000,
+    "period": "month"
+  },
+  "skills": ["Python", "FastAPI", "PostgreSQL", "Docker", "AWS"],
+  "years_experience": 5,
+  "industries": ["SaaS", "Fintech"],
+  "languages": ["Indonesian", "English"],
+  "resume_facts": [
+    "Membangun API production dengan Python dan FastAPI.",
+    "Mengelola database PostgreSQL dan deployment berbasis Docker."
+  ],
+  "excluded_companies": [],
+  "consent": {
+    "allow_draft_generation": true,
+    "allow_browser_prefill": false,
+    "require_approval_before_submit": true
+  }
+}
+
